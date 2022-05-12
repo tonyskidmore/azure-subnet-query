@@ -13,7 +13,7 @@ git clone https://github.com/tonyskidmore/azure-subnet-query.git
 cd azure-subnet-query
 
 ````
-Query and export to JSON
+Query and export to a JSON file named after the targeted subnet.
 
 ````powershell
 
@@ -21,7 +21,7 @@ Query and export to JSON
 
 ````
 
-Query and export to CSV
+Query and export to CSV file named after the targeted subnet.
 
 ````powershell
 

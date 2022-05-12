@@ -1,3 +1,5 @@
+#Requires -Modules Az.Accounts, Az.Network
+
 <#
 
 .SYNOPSIS
