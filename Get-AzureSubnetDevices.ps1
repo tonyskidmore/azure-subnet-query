@@ -27,8 +27,10 @@ Name of the Azure subnet.
 ID of the Azure subscription.
 
 .PARAMETER Flatten
-Whether to tray and flatten so that teh data can be output as CSV.  Would lose some data if there were multiple private link service connections.
+Whether to try and flatten so that teh data can be output as CSV.  Would lose some data if there were multiple private link service connections.
 
+.PARAMETER Transcript
+Create a transcript of the execution for debugging purposes.
 
 .LINK
 https://github.com/tonyskidmore/azure-subnet-query
@@ -54,8 +56,13 @@ param(
     $SubscriptionID,
 
     [boolean]
-    $Flatten = $False
+    $Flatten = $False,
+
+    [boolean]
+    $Transcript = $false
 )
+
+if ($Transcript) { Start-Transcript -Path "./Get-AzureSubnetDevices.log"}
 
 $azContext = Get-AzContext
 
@@ -87,8 +94,10 @@ foreach ($ipConf in $subnet.IpConfigurations) {
 
   Write-Output "Querying private IP address: $($ipConf.PrivateIpAddress)"
   $nicId = $ipConf.Id.Substring(0, $ipConf.Id.IndexOf("/ipConfigurations"))
+  Write-Verbose -Message "ipConfiguration: $($ipConf | ConvertTo-Json -Depth 5 -Compress)"
   try {
     $nicResource = Get-AzResource -ResourceId $nicId -ErrorAction Stop
+    Write-Verbose -Message "nicResource: $($nicResource | ConvertTo-Json -Depth 5 -Compress)"
   } catch {
     # TODO: check for specific issue i.e. wrong subscription rather than just ignoring
     $nicResource = $null
@@ -96,6 +105,7 @@ foreach ($ipConf in $subnet.IpConfigurations) {
 
   try {
     $nic = Get-AzNetworkInterface -ResourceId $nicId -ErrorAction Stop
+    Write-Verbose -Message "nic: $($nic | ConvertTo-Json -Depth -Compress)"
   } catch {
     $nic = $null
   }
@@ -108,27 +118,32 @@ foreach ($ipConf in $subnet.IpConfigurations) {
   }
 
   $pe = Get-AzPrivateEndpoint | Where-Object {$_.NetworkInterfaces.Id -contains $nicId}
+  Write-Verbose -Message "pe: $($pe | ConvertTo-Json -Depth 5 -Compress)"
 
   $privateLinkList = [System.Collections.Generic.List[PSCustomObject]]@()
   foreach($privateLinkServiceConnection in $pe.PrivateLinkServiceConnections) {
     $plSid = $privateLinkServiceConnection.PrivateLinkServiceId
     $privateEC = Get-AzPrivateEndpointConnection -PrivateLinkResourceId $plSid
+    Write-Verbose -Message "privateEC: $($privateEC | ConvertTo-Json -Depth 5 -Compress)"
     $plResource = Get-AzPrivateLinkResource -PrivateLinkResourceId $plSid
-    $resID = $plResource.Id.Substring(0, $plResource.Id.IndexOf("/privateLinkResources"))
+    Write-Verbose -Message "plResource: $($plResource | ConvertTo-Json -Depth 5 -Compress)"
+
     try {
-      $plResource = Get-AzResource -ResourceId $resID -ErrorAction Stop
+      $resID = $plResource.Id.Substring(0, $plResource.Id.IndexOf("/privateLinkResources"))
+      $res = Get-AzResource -ResourceId $resID -ErrorAction Stop
+      Write-Verbose -Message "res: $($res | ConvertTo-Json -Depth 5 -Compress)"
     } catch {
       # TODO: check for issues rather than just ignoring
     }
 
     if($Flatten) {
-      $PrivateLinkResource = $plResource.Name
+      $PrivateLinkResource = $res.Name
       $PrivateLinkResourceResourceGroup = $plResource.ResourceGroupName
       $PrivateEndpointConnectionName = $privateEC.Name
       $PrivateEndpointProvisioningState = $privateEC.ProvisioningState
     } else {
       $privateLink = [PSCustomObject]@{
-        PrivateLinkResource = $plResource.Name
+        PrivateLinkResource = $res.Name
         PrivateLinkResourceResourceGroup = $plResource.ResourceGroupName
         PrivateEndpointConnectionName = $privateEC.Name
         PrivateEndpointProvisioningState = $privateEC.ProvisioningState
@@ -168,6 +183,22 @@ foreach ($ipConf in $subnet.IpConfigurations) {
     }
   }
   $deviceList.Add($connectedDevice)
+  $connectedDevice = $null
+  $nicId = $null
+  $nicResource = $null
+  $nic = $null
+  $vmName = $null
+  $privateLinkList = $null
+  $vmResourceGroupName = $null
+  $PrivateLinkResource = $null
+  $PrivateLinkResourceResourceGroup = $null
+  $PrivateEndpointConnectionName = $null
+  $PrivateEndpointProvisioningState = $null
+  $resID = $null
+  $res = $null
+  $plResource = $null
+  $privateEC  = $null
+  $plSid = $null
 }
 
 # dump results to screen
@@ -181,3 +212,4 @@ if($Flatten) {
   $jsonData | Out-File "./$SubnetName-connected-devices.json"
 }
 
+if ($Transcript) { Stop-Transcript }
