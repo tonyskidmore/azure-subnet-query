@@ -1,6 +1,6 @@
 # Azure Subnet Query
 
-Basic PowerShell script to gather information about the connected devices on An Azure subnet.
+Basic PowerShell script to gather information about the connected devices on an Azure subnet.
 
 ## Usage
 
